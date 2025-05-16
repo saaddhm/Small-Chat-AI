@@ -1,0 +1,125 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+  <meta charset="UTF-8" />
+  <meta name="viewport" content="width=device-width, initial-scale=1.0"/>
+  <title>AI DHM</title>
+  <script src="https://cdn.tailwindcss.com"></script>
+  <style>
+    .blinking-dots::after {
+      content: '...';
+      animation: blink 1s infinite;
+    }
+    @keyframes blink { 50% { opacity: 0; } }
+  </style>
+</head>
+<body class="bg-gray-100 h-screen w-screen flex items-center justify-center p-4 sm:p-6 overflow-hidden">
+  <div class="w-full h-full max-w-4xl bg-white shadow-lg rounded-xl p-6 sm:p-8 flex flex-col">
+    <h1 class="text-2xl sm:text-3xl font-bold text-center text-blue-600 mb-6">AI DHM</h1>
+
+    <div id="chat-box" class="flex-1 overflow-y-auto border p-4 sm:p-6 rounded mb-4 bg-gray-50 text-gray-800 text-sm sm:text-base leading-relaxed" role="log" aria-live="polite"></div>
+
+    <div class="flex gap-2">
+      <label for="user-input" class="sr-only">Type your message</label>
+      <input id="user-input" type="text" placeholder="Type your message..." class="flex-1 border rounded p-2" aria-label="Type your message" />
+      <button onclick="sendMessage()" class="bg-blue-600 text-white px-4 py-2 rounded">Send</button>
+    </div>
+  </div>
+
+  <script>
+    const input = document.getElementById('user-input');
+    const chatBox = document.getElementById('chat-box');
+
+    // Charger les messages depuis /messages
+    async function loadMessages() {
+      try {
+        const res = await fetch('/messages');
+        const data = await res.json();
+
+        data.forEach(msg => {
+          const messageEl = document.createElement('div');
+          messageEl.className = 'mb-2 ' + (msg.sender === 'ai' ? 'text-green-700' : '');
+          messageEl.innerHTML = `<strong>${msg.sender === 'ai' ? 'AI' : 'You'}:</strong> ${msg.message}`;
+          chatBox.appendChild(messageEl);
+        });
+
+        chatBox.scrollTop = chatBox.scrollHeight;
+      } catch (error) {
+        console.error('Erreur lors du chargement des messages :', error);
+      }
+    }
+
+    // Animation dactylographique
+    function typeText(element, text, delay = 20) {
+      let i = 0;
+      const interval = setInterval(() => {
+        if (i < text.length) {
+          element.textContent += text.charAt(i);
+          i++;
+          chatBox.scrollTop = chatBox.scrollHeight;
+        } else {
+          clearInterval(interval);
+        }
+      }, delay);
+    }
+
+    // Envoyer message
+    async function sendMessage() {
+      const message = input.value.trim();
+      if (!message) return;
+
+      const userMessage = document.createElement('div');
+      userMessage.className = 'mb-2';
+      userMessage.innerHTML = `<strong>You:</strong> ${message}`;
+      chatBox.appendChild(userMessage);
+      input.value = '';
+      chatBox.scrollTop = chatBox.scrollHeight;
+
+      const loaderId = `loader-${Date.now()}`;
+      const loader = document.createElement('div');
+      loader.id = loaderId;
+      loader.className = 'mb-2 text-blue-500';
+      loader.innerHTML = `<strong>AI:</strong> <span class="blinking-dots">Thinking</span>`;
+      chatBox.appendChild(loader);
+
+      try {
+        const response = await fetch('/chat', {
+          method: 'POST',
+          headers: { 'Content-Type': 'application/json' },
+          body: JSON.stringify({ message })
+        });
+
+        if (!response.ok) throw new Error('Request failed');
+
+        const data = await response.json();
+
+        const aiMessage = document.createElement('div');
+        aiMessage.className = 'mb-2 text-green-700';
+        aiMessage.innerHTML = `<strong>AI:</strong> <span></span>`;
+        const span = aiMessage.querySelector('span');
+        chatBox.replaceChild(aiMessage, loader);
+
+        typeText(span, data.response, 15);
+      } catch (error) {
+        const errorMessage = document.createElement('div');
+        errorMessage.className = 'mb-2 text-red-600';
+        errorMessage.innerHTML = `<strong>AI:</strong> Sorry, something went wrong.`;
+        chatBox.replaceChild(errorMessage, loader);
+      }
+
+      chatBox.scrollTop = chatBox.scrollHeight;
+    }
+
+    // Envoi avec Enter
+    input.addEventListener('keydown', function(event) {
+      if (event.key === 'Enter') {
+        event.preventDefault();
+        sendMessage();
+      }
+    });
+
+    // Charger l'historique au lancement
+    loadMessages();
+  </script>
+</body>
+</html>
